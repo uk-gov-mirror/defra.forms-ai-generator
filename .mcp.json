@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "forms-creator": {
+      "command": "node",
+      "args": ["dist/index.js"]
+    }
+  }
+}

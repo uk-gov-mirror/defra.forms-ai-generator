@@ -1,0 +1,24 @@
+{
+  "name": "forms-creator-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for creating Defra Forms form JSON structures",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "forms-creator-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
