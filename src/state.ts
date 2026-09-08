@@ -10,7 +10,14 @@ import type {
   OperatorName,
   ComponentType,
 } from "./types.js";
-import { LIST_COMPONENT_TYPES } from "./types.js";
+import {
+  DEFAULT_REPEAT_MAX,
+  DEFAULT_REPEAT_MIN,
+  CONTENT_COMPONENT_TYPES,
+  LIST_COMPONENT_TYPES,
+  MAX_NUMBER_OF_REPEAT_ITEMS,
+  MIN_NUMBER_OF_REPEAT_ITEMS,
+} from "./types.js";
 
 function generateShortName(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -41,6 +48,14 @@ export interface AddQuestionParams {
   maxDaysInPast?: number;
   maxDaysInFuture?: number;
   content?: string;
+}
+
+export interface AddRepeatPageParams {
+  title: string;
+  path: string;
+  itemTitle: string;
+  min?: number;
+  max?: number;
 }
 
 export interface AddConditionParams {
@@ -135,6 +150,45 @@ export class FormState {
     this.currentPageIndex = form.pages.length - 1;
   }
 
+  addRepeatPage(params: AddRepeatPageParams): void {
+    const form = this.requireForm();
+
+    const min = params.min ?? DEFAULT_REPEAT_MIN;
+    const max = params.max ?? DEFAULT_REPEAT_MAX;
+
+    if (!Number.isInteger(min) || !Number.isInteger(max)) {
+      throw new Error("Repeat min and max must be whole numbers.");
+    }
+    if (min < MIN_NUMBER_OF_REPEAT_ITEMS) {
+      throw new Error(
+        `Repeat min must be at least ${MIN_NUMBER_OF_REPEAT_ITEMS}, got ${min}.`
+      );
+    }
+    if (max > MAX_NUMBER_OF_REPEAT_ITEMS) {
+      throw new Error(
+        `Repeat max must be at most ${MAX_NUMBER_OF_REPEAT_ITEMS}, got ${max}.`
+      );
+    }
+    if (max < min) {
+      throw new Error(`Repeat max (${max}) must be at least the min (${min}).`);
+    }
+
+    const page: Page = {
+      id: randomUUID(),
+      title: params.title,
+      path: params.path,
+      controller: "RepeatPageController",
+      next: [],
+      components: [],
+      repeat: {
+        options: { name: generateShortName(), title: params.itemTitle },
+        schema: { min, max },
+      },
+    };
+    form.pages.push(page);
+    this.currentPageIndex = form.pages.length - 1;
+  }
+
   setCurrentPage(path: string): void {
     const form = this.requireForm();
     const index = form.pages.findIndex((p) => p.path === path);
@@ -147,6 +201,43 @@ export class FormState {
   addQuestion(params: AddQuestionParams): void {
     const form = this.requireForm();
     const page = this.requireCurrentPage();
+
+    if (params.type === "FileUploadField" && page.repeat) {
+      throw new Error(
+        `Cannot add a FileUploadField to repeating page "${page.path}". A page holding a file upload uses FileUploadPageController, which cannot also repeat. Put the upload on its own non-repeating page.`
+      );
+    }
+
+    // A file upload page accepts one FileUploadField and nothing else besides
+    // guidance, so a mixed page fails validation.
+    const hasUpload = page.components.some((c) => c.type === "FileUploadField");
+    if (params.type === "FileUploadField") {
+      if (hasUpload) {
+        throw new Error(
+          `Page "${page.path}" already has a file upload. A page can hold only one FileUploadField. Put the second upload on its own page.`
+        );
+      }
+      const otherQuestions = page.components.filter(
+        (c) => !CONTENT_COMPONENT_TYPES.has(c.type)
+      );
+      if (otherQuestions.length > 0) {
+        throw new Error(
+          `Cannot add a FileUploadField to page "${page.path}" because it already has other questions (${otherQuestions
+            .map((c) => c.name)
+            .join(", ")}). A file upload page can hold only the upload and guidance. Put the upload on its own page.`
+        );
+      }
+    } else if (hasUpload) {
+      throw new Error(
+        `Cannot add a ${params.type} to page "${page.path}" because it holds a file upload. A file upload page can hold only the upload and guidance. Put this question on its own page.`
+      );
+    }
+
+    // A page holding a file upload must use FileUploadPageController, otherwise
+    // the runtime renders it as an ordinary page and the upload does not work.
+    if (params.type === "FileUploadField") {
+      page.controller = "FileUploadPageController";
+    }
 
     const required = params.required !== false;
     const options: Record<string, unknown> = { required };
@@ -240,7 +331,12 @@ export class FormState {
     page.components.push(component);
   }
 
-  addPageCondition(params: AddConditionParams): void {
+  private findPageHoldingComponent(name: string): Page | undefined {
+    const form = this.requireForm();
+    return form.pages.find((p) => p.components.some((c) => c.name === name));
+  }
+
+  addPageCondition(params: AddConditionParams): string | undefined {
     const form = this.requireForm();
     const currentPage = this.requireCurrentPage();
 
@@ -300,6 +396,12 @@ export class FormState {
 
     form.conditions.push(condition);
     currentPage.condition = condition.id;
+
+    const sourcePage = this.findPageHoldingComponent(params.componentName);
+    if (sourcePage?.repeat) {
+      return `Warning: "${params.componentName}" sits on repeating page "${sourcePage.path}", so its answer is a set of values rather than a single one. Conditions on repeated answers may not evaluate as expected — check this in the designer.`;
+    }
+    return undefined;
   }
 
   addCompositeCondition(params: AddCompositeConditionParams): void {
@@ -383,6 +485,13 @@ export class FormState {
             title: currentPage.title,
             path: currentPage.path,
             componentCount: currentPage.components.length,
+            repeat: currentPage.repeat
+              ? {
+                  itemTitle: currentPage.repeat.options.title,
+                  min: currentPage.repeat.schema.min,
+                  max: currentPage.repeat.schema.max,
+                }
+              : undefined,
             components: currentPage.components.map((c) => ({
               type: c.type,
               name: c.name,
@@ -395,6 +504,9 @@ export class FormState {
         title: p.title,
         path: p.path,
         componentCount: p.components.length,
+        repeat: p.repeat
+          ? `${p.repeat.options.title} (${p.repeat.schema.min}-${p.repeat.schema.max})`
+          : undefined,
         condition: p.condition
           ? form.conditions.find((c) => c.id === p.condition)?.displayName
           : undefined,

@@ -3,6 +3,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { FormState } from "./state.js";
+import {
+  DEFAULT_REPEAT_MAX,
+  DEFAULT_REPEAT_MIN,
+  MAX_NUMBER_OF_REPEAT_ITEMS,
+  MIN_NUMBER_OF_REPEAT_ITEMS,
+} from "./types.js";
 
 const state = new FormState();
 
@@ -105,6 +111,49 @@ server.tool(
     try {
       state.addGuidancePage(title, path, content);
       return toolResult(`Guidance page "${title}" added at "${path}".`);
+    } catch (err) {
+      return toolError(err);
+    }
+  }
+);
+
+server.tool(
+  "add_repeat_page",
+  `Adds a repeating question page — one set of questions the user answers once per item, with an "add another" loop and a list of what they have added so far.
+
+Use this for anything the source form handles with "continue on a separate sheet", numbered blocks (Person 1, Person 2, Person 3), a table with one row per thing, or "list all …". It replaces duplicating the same questions N times.
+
+Every question added to this page afterwards becomes part of the repeated set. FileUploadField cannot be used on a repeating page — put uploads on their own page.`,
+  {
+    title: z.string().describe("Page heading shown to the user, e.g. 'Microchip manufacturer'"),
+    path: z.string().describe("URL path for the page, e.g. /manufacturer"),
+    item_title: z
+      .string()
+      .describe(
+        "Singular name for one item in the set, shown per entry and on the 'add another' summary, e.g. 'Manufacturer'"
+      ),
+    min: z
+      .number()
+      .int()
+      .optional()
+      .describe(
+        `Minimum number of items the user must add (default ${DEFAULT_REPEAT_MIN}, lowest allowed ${MIN_NUMBER_OF_REPEAT_ITEMS})`
+      ),
+    max: z
+      .number()
+      .int()
+      .optional()
+      .describe(
+        `Maximum number of items the user may add (default ${DEFAULT_REPEAT_MAX}, highest allowed ${MAX_NUMBER_OF_REPEAT_ITEMS}). Set this deliberately to match the form.`
+      ),
+  },
+  async ({ title, path, item_title, min, max }) => {
+    try {
+      state.addRepeatPage({ title, path, itemTitle: item_title, min, max });
+      const bounds = `${min ?? DEFAULT_REPEAT_MIN} to ${max ?? DEFAULT_REPEAT_MAX}`;
+      return toolResult(
+        `Repeating page "${title}" added at "${path}". The user can add ${bounds} "${item_title}" entries. Questions added now become part of the repeated set.`
+      );
     } catch (err) {
       return toolError(err);
     }
@@ -257,10 +306,14 @@ For text fields, pass the string value to compare.`,
   },
   async ({ display_name, component_name, operator, value }) => {
     try {
-      state.addPageCondition({ displayName: display_name, componentName: component_name, operator, value });
-      return toolResult(
-        `Condition "${display_name}" applied to current page. The page will only be shown when ${component_name} ${operator} "${value}".`
-      );
+      const warning = state.addPageCondition({
+        displayName: display_name,
+        componentName: component_name,
+        operator,
+        value,
+      });
+      const message = `Condition "${display_name}" applied to current page. The page will only be shown when ${component_name} ${operator} "${value}".`;
+      return toolResult(warning ? `${message}\n\n${warning}` : message);
     } catch (err) {
       return toolError(err);
     }

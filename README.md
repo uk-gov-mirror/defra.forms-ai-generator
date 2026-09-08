@@ -89,6 +89,7 @@ You should see `forms-creator` listed with 12 tools.
 | `create_form` | Start a new form — resets any in-progress state |
 | `add_page` | Add a question page (becomes the active page) |
 | `add_guidance_page` | Add an information page with markdown content |
+| `add_repeat_page` | Add a repeating page — one question set answered once per item, with an "add another" loop |
 | `set_current_page` | Switch the active page by path |
 | `add_question` | Add an input field to the active page |
 | `add_content` | Add a display-only component (callout, markdown block, etc.) |
@@ -139,6 +140,36 @@ Using the forms-creator MCP server, build a planning application form with the f
 
 Save the form to /tmp.
 ```
+
+### How repeating pages work
+
+A repeating page asks the same set of questions once per item, with an "add another" loop and a running list of what the user has added. Use it wherever the source form says "continue on a separate sheet", numbers its blocks (Manufacturer 1, Manufacturer 2), or gives a table with one row per thing — rather than duplicating the questions N times.
+
+```
+add_repeat_page(
+  title      = "Microchip manufacturer",
+  path       = "/manufacturer",
+  item_title = "Manufacturer",
+  min        = 1,
+  max        = 5
+)
+add_question(type = "TextField", title = "What is the manufacturer name?", name = "manufacturerName")
+```
+
+Every question added after the call becomes part of the repeated set, until you call `add_page`, `add_guidance_page`, `add_repeat_page` or `set_current_page` again.
+
+- `item_title` is the singular name for one entry. It labels each item in the "add another" list, so `"Manufacturer"` reads better than `"Manufacturers"` or `"Manufacturer details"`.
+- `min` / `max` default to 1 and 25. The schema allows a max of up to 200, but set the bound deliberately to match the form.
+- **`FileUploadField` cannot go on a repeating page.** A page holding a file upload uses `FileUploadPageController`, which cannot also repeat — put uploads on their own page. The server rejects this rather than emitting an invalid form.
+- Answers to a repeating question are a *set* of values, so a condition testing one behaves differently to a condition on an ordinary question. `add_page_condition` returns a warning when you do this.
+
+This mirrors `RepeatPageController` in the `forms-designer` model package, and the output validates against `formDefinitionV2Schema`.
+
+### How file upload pages work
+
+Adding a `FileUploadField` sets the page controller to `FileUploadPageController` automatically. Without that controller the runtime renders the page as an ordinary one and the upload does not work, so the server sets it rather than leaving it to the caller.
+
+A file upload page can hold **one** `FileUploadField` and nothing else except guidance (`add_content`). The server rejects a second upload on the same page, a question added to a page that already holds an upload, and an upload added to a page that already holds other questions. Give each upload its own page.
 
 ### How conditions work
 

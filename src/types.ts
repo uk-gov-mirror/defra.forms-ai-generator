@@ -67,18 +67,39 @@ export interface Component {
   schema: Record<string, unknown>;
 }
 
+export type ControllerType =
+  | "StartPageController"
+  | "PageController"
+  | "RepeatPageController"
+  | "FileUploadPageController"
+  | "TerminalPageController"
+  | "SummaryPageController"
+  | "StatusPageController";
+
+export interface RepeatOptions {
+  name: string;
+  title: string;
+}
+
+export interface RepeatSchema {
+  min: number;
+  max: number;
+}
+
+export interface Repeat {
+  options: RepeatOptions;
+  schema: RepeatSchema;
+}
+
 export interface Page {
   id: string;
   title: string;
   path: string;
-  controller?: string;
+  controller?: ControllerType;
   next: never[];
   components: Component[];
   condition?: string;
-  repeat?: {
-    options: { name: string; title: string };
-    schema: { min: number; max: number };
-  };
+  repeat?: Repeat;
 }
 
 export interface ConditionItem {
@@ -118,3 +139,26 @@ export const LIST_COMPONENT_TYPES = new Set<ComponentType>([
   "SelectField",
   "AutocompleteField",
 ]);
+
+export const CONTENT_COMPONENT_TYPES = new Set<ComponentType>([
+  "Markdown",
+  "Html",
+  "Details",
+  "InsetText",
+  "NotificationBanner",
+]);
+
+/**
+ * Repeat item bounds, mirroring MIN_NUMBER_OF_REPEAT_ITEMS and
+ * MAX_NUMBER_OF_REPEAT_ITEMS in the forms-designer model package.
+ */
+export const MIN_NUMBER_OF_REPEAT_ITEMS = 1;
+export const MAX_NUMBER_OF_REPEAT_ITEMS = 200;
+
+/**
+ * Default bounds applied when a repeat page is added without them. Matches the
+ * "Add another" page template in the forms-designer model package — 200 is the
+ * schema ceiling, not a sensible default for a form.
+ */
+export const DEFAULT_REPEAT_MIN = 1;
+export const DEFAULT_REPEAT_MAX = 25;
