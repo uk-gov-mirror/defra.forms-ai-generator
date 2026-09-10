@@ -92,13 +92,13 @@ You should see `forms-creator` listed with 12 tools.
 | `add_repeat_page` | Add a repeating page — one question set answered once per item, with an "add another" loop |
 | `set_current_page` | Switch the active page by path |
 | `add_question` | Add an input field to the active page |
-| `add_content` | Add a display-only component (callout, markdown block, etc.) |
+| `add_content` | Add a display-only component (callout, markdown block, bulleted list, etc.) |
 | `add_page_condition` | Gate a page so it only shows when a previous answer matches |
 | `add_composite_condition` | Combine two or more conditions with AND / OR |
 | `apply_condition_to_page` | Apply a composite condition to the active page |
 | `get_form_status` | Summary of pages, questions, and conditions built so far |
 | `get_form_json` | Full raw JSON of the form being built |
-| `save_form` | Write `<form-name>.json` to disk |
+| `save_form` | Write `<form-name>.json` to disk, optionally with a confirmation email on submit |
 
 ### Question types for `add_question`
 
@@ -116,9 +116,27 @@ You should see `forms-creator` listed with 12 tools.
 | `CheckboxesField` | Checkboxes from a list (requires `list_items`) |
 | `SelectField` | Dropdown from a list (requires `list_items`) |
 | `AutocompleteField` | Autocomplete from a list (requires `list_items`) |
-| `UkAddressField` | UK address with postcode lookup |
+| `UkAddressField` | UK address with postcode lookup. Set `use_postcode_lookup = false` for manual entry |
 | `FileUploadField` | File upload |
 | `DeclarationField` | Declaration checkbox (requires `content`) |
+| `HiddenField` | Value carried through the form without being shown |
+| `PaymentField` | GOV.UK Pay charge (requires `amount` and `payment_description`) |
+| `GeospatialField` | Draw a point, line or shape on a map |
+| `EastingNorthingField` | OS easting and northing coordinate pair |
+| `LatLongField` | Latitude and longitude coordinate pair |
+| `OsGridRefField` | OS grid reference, e.g. SU 12345 67890 |
+| `NationalGridFieldNumberField` | National Grid field number |
+
+### Content types for `add_content`
+
+| Type | Description |
+|---|---|
+| `Markdown` | Block of Markdown text |
+| `Html` | Block of raw HTML |
+| `Details` | Collapsible section — `title` is the summary line, `content` the body |
+| `InsetText` | Text in a bordered callout |
+| `List` | Bulleted or numbered list of fixed text (requires `list_items`) |
+| `NotificationBanner` | Banner, optionally styled as a success message |
 
 ## Usage
 
@@ -171,6 +189,20 @@ Adding a `FileUploadField` sets the page controller to `FileUploadPageController
 
 A file upload page can hold **one** `FileUploadField` and nothing else except guidance (`add_content`). The server rejects a second upload on the same page, a question added to a page that already holds an upload, and an upload added to a page that already holds other questions. Give each upload its own page.
 
+### How address questions work
+
+`UkAddressField` uses postcode lookup by default — the user enters a postcode and picks their address from the results. This is quicker and more accurate than typing it out, so it is the right choice for most forms.
+
+Set `use_postcode_lookup = false` to fall back to manual entry, where the user types address line 1, line 2, town, county and postcode. Do this where the address may not be on the postcode file, such as new-build sites and land parcels.
+
+### How payment questions work
+
+`PaymentField` creates a GOV.UK Pay charge. It needs an `amount` in pounds (0 to 100,000) and a `payment_description` of at most 230 characters, which appears on the payment page and the payer's statement.
+
+To vary the charge, pass `conditional_amounts` — a list of condition name and amount pairs, evaluated in order, where the first match wins. The conditions must already exist, so add them before the `PaymentField`. A conditional amount cannot be below £0.30, which is the GOV.UK Pay minimum.
+
+Pass `email_field` with the `name` of an `EmailAddressField` already in the form to prefill the email on the payment page.
+
 ### How conditions work
 
 Page conditions gate visibility: a page is only shown to the user if its condition is true. To set one up, add the page and its questions first, then call `add_page_condition` referencing the `name` of a question on a *previous* page.
@@ -188,7 +220,7 @@ To combine conditions (e.g. show a page only when A *and* B are true):
 
 ### Output
 
-The saved JSON is a valid Defra Forms v2 definition that can be imported directly into the forms designer. A `Check your answers` summary page is appended automatically if not already present.
+The saved JSON is a valid Defra Forms v2 definition that can be imported directly into the forms designer. A `Check your answers` summary page is appended automatically if not already present. Pass `confirmation_email = true` to `save_form` to have that page use `SummaryPageWithConfirmationEmailController`, which emails the user a confirmation after they submit.
 
 ## Skills
 

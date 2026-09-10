@@ -13,14 +13,68 @@ export type InputComponentType =
   | "AutocompleteField"
   | "UkAddressField"
   | "FileUploadField"
-  | "DeclarationField";
+  | "DeclarationField"
+  | "EastingNorthingField"
+  | "OsGridRefField"
+  | "NationalGridFieldNumberField"
+  | "LatLongField"
+  | "HiddenField"
+  | "PaymentField"
+  | "GeospatialField";
 
 export type ContentComponentType =
   | "Markdown"
   | "Html"
   | "Details"
   | "InsetText"
+  | "List"
   | "NotificationBanner";
+
+/**
+ * Countries a precise location field may be restricted to, mirroring
+ * GeospatialFieldOptionsCountryEnum in the forms-designer model package.
+ */
+export type GeospatialCountry =
+  | "england"
+  | "northern-ireland"
+  | "scotland"
+  | "wales";
+
+/**
+ * Geometry a GeospatialField lets the user draw, mirroring
+ * GeospatialFieldGeometryTypesEnum in the forms-designer model package.
+ */
+export type GeospatialGeometryType = "point" | "line" | "shape";
+
+/**
+ * How a List content component renders its items, mirroring ListTypeOption in
+ * the forms-designer model package.
+ */
+export type ListDisplayType = "bulleted" | "numbered";
+
+/**
+ * Telephone number formats, mirroring TelephoneNumberFieldOptionsFormatEnum in
+ * the forms-designer model package.
+ */
+export type TelephoneNumberFormat = "uk" | "international";
+
+/**
+ * Optional map layers a precise location field can display.
+ */
+export interface MapLayers {
+  /** Sites of Special Scientific Interest */
+  sssi?: boolean;
+}
+
+/**
+ * A payment amount that applies only when a named condition is met. Amounts are
+ * evaluated in order and the first match wins.
+ */
+export interface ConditionalAmount {
+  /** Condition id */
+  condition: string;
+  amount: number;
+}
 
 export type ComponentType = InputComponentType | ContentComponentType;
 
@@ -61,6 +115,7 @@ export interface Component {
   title?: string;
   hint?: string;
   shortDescription?: string;
+  errorDescription?: string;
   content?: string;
   list?: string;
   options: Record<string, unknown>;
@@ -74,6 +129,7 @@ export type ControllerType =
   | "FileUploadPageController"
   | "TerminalPageController"
   | "SummaryPageController"
+  | "SummaryPageWithConfirmationEmailController"
   | "StatusPageController";
 
 export interface RepeatOptions {
@@ -145,8 +201,31 @@ export const CONTENT_COMPONENT_TYPES = new Set<ComponentType>([
   "Html",
   "Details",
   "InsetText",
+  "List",
   "NotificationBanner",
 ]);
+
+/**
+ * Content components that carry their own text rather than referencing a list.
+ * The List component is the exception — it renders items from form.lists.
+ */
+export const CONTENT_COMPONENT_TYPES_WITH_CONTENT = new Set<ComponentType>([
+  "Markdown",
+  "Html",
+  "Details",
+  "InsetText",
+  "NotificationBanner",
+]);
+
+/**
+ * Payment bounds enforced by the forms-designer Joi schema. A conditional
+ * amount has a higher floor than the base amount because GOV.UK Pay rejects
+ * charges below 30p.
+ */
+export const MIN_PAYMENT_AMOUNT = 0;
+export const MAX_PAYMENT_AMOUNT = 100000;
+export const MIN_CONDITIONAL_PAYMENT_AMOUNT = 0.3;
+export const MAX_PAYMENT_DESCRIPTION_LENGTH = 230;
 
 /**
  * Repeat item bounds, mirroring MIN_NUMBER_OF_REPEAT_ITEMS and

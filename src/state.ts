@@ -10,13 +10,26 @@ import type {
   OperatorName,
   ComponentType,
 } from "./types.js";
+import type {
+  ConditionalAmount,
+  GeospatialCountry,
+  ListDisplayType,
+  GeospatialGeometryType,
+  MapLayers,
+  TelephoneNumberFormat,
+} from "./types.js";
 import {
   DEFAULT_REPEAT_MAX,
   DEFAULT_REPEAT_MIN,
   CONTENT_COMPONENT_TYPES,
+  CONTENT_COMPONENT_TYPES_WITH_CONTENT,
   LIST_COMPONENT_TYPES,
   MAX_NUMBER_OF_REPEAT_ITEMS,
+  MAX_PAYMENT_AMOUNT,
+  MAX_PAYMENT_DESCRIPTION_LENGTH,
+  MIN_CONDITIONAL_PAYMENT_AMOUNT,
   MIN_NUMBER_OF_REPEAT_ITEMS,
+  MIN_PAYMENT_AMOUNT,
 } from "./types.js";
 
 function generateShortName(): string {
@@ -35,6 +48,7 @@ export interface AddQuestionParams {
   hint?: string;
   required?: boolean;
   shortDescription?: string;
+  errorDescription?: string;
   listItems?: Array<{ text: string; value: string; hint?: string }>;
   maxLength?: number;
   minLength?: number;
@@ -43,11 +57,63 @@ export interface AddQuestionParams {
   maxWords?: number;
   minValue?: number;
   maxValue?: number;
+  precision?: number;
+  minPrecision?: number;
   prefix?: string;
   suffix?: string;
   maxDaysInPast?: number;
   maxDaysInFuture?: number;
+  earliestDate?: string;
+  latestDate?: string;
+  earliestMonthYear?: string;
+  latestMonthYear?: string;
   content?: string;
+  autocomplete?: string;
+  classes?: string;
+  optionalText?: boolean;
+  instructionText?: string;
+  customValidationMessage?: string;
+  usePostcodeLookup?: boolean;
+  hideTitle?: boolean;
+  bold?: boolean;
+  telephoneFormat?: TelephoneNumberFormat;
+  accept?: string;
+  minFiles?: number;
+  maxFiles?: number;
+  declarationConfirmationLabel?: string;
+  minSelected?: number;
+  maxSelected?: number;
+  amount?: number;
+  paymentDescription?: string;
+  conditionalAmounts?: ConditionalAmount[];
+  emailField?: string;
+  countries?: GeospatialCountry[];
+  geometryTypes?: GeospatialGeometryType[];
+  mapLayers?: MapLayers;
+  minEasting?: number;
+  maxEasting?: number;
+  minNorthing?: number;
+  maxNorthing?: number;
+  minLatitude?: number;
+  maxLatitude?: number;
+  minLongitude?: number;
+  maxLongitude?: number;
+  minFeatures?: number;
+  maxFeatures?: number;
+}
+
+export interface AddContentParams {
+  type: string;
+  content?: string;
+  title?: string;
+  hint?: string;
+  listItems?: Array<{ text: string; value: string; hint?: string }>;
+  listType?: ListDisplayType;
+  classes?: string;
+  hideTitle?: boolean;
+  bold?: boolean;
+  success?: boolean;
+  heading?: string;
 }
 
 export interface AddRepeatPageParams {
@@ -258,6 +324,26 @@ export class FormState {
     if (params.shortDescription) {
       component.shortDescription = params.shortDescription;
     }
+    if (params.errorDescription) {
+      component.errorDescription = params.errorDescription;
+    }
+
+    // Options every input field accepts, regardless of type.
+    if (params.classes) {
+      options.classes = params.classes;
+    }
+    if (params.optionalText !== undefined) {
+      options.optionalText = params.optionalText;
+    }
+    if (params.instructionText) {
+      options.instructionText = params.instructionText;
+    }
+    if (params.customValidationMessage) {
+      options.customValidationMessage = params.customValidationMessage;
+    }
+    if (params.autocomplete) {
+      options.autocomplete = params.autocomplete;
+    }
 
     if (LIST_COMPONENT_TYPES.has(params.type as ComponentType)) {
       const items: ListItem[] = (params.listItems ?? []).map((item) => ({
@@ -289,25 +375,107 @@ export class FormState {
           if (params.rows !== undefined) { options.rows = params.rows; }
           if (params.maxWords !== undefined) { options.maxWords = params.maxWords; }
         }
+        if (params.type === "TelephoneNumberField" && params.telephoneFormat) {
+          options.format = params.telephoneFormat;
+        }
         break;
       }
       case "NumberField": {
         if (params.maxValue !== undefined) { schema.max = params.maxValue; }
         if (params.minValue !== undefined) { schema.min = params.minValue; }
+        if (params.precision !== undefined) { schema.precision = params.precision; }
+        if (params.minPrecision !== undefined) { schema.minPrecision = params.minPrecision; }
+        if (params.maxLength !== undefined) { schema.maxLength = params.maxLength; }
+        if (params.minLength !== undefined) { schema.minLength = params.minLength; }
         if (params.prefix) { options.prefix = params.prefix; }
         if (params.suffix) { options.suffix = params.suffix; }
         break;
       }
-      case "DatePartsField":
-      case "MonthYearField": {
+      case "DatePartsField": {
         if (params.maxDaysInPast !== undefined) { options.maxDaysInPast = params.maxDaysInPast; }
         if (params.maxDaysInFuture !== undefined) { options.maxDaysInFuture = params.maxDaysInFuture; }
+        if (params.earliestDate) { options.earliestDate = params.earliestDate; }
+        if (params.latestDate) { options.latestDate = params.latestDate; }
+        break;
+      }
+      case "MonthYearField": {
+        // A month/year field is bounded by earliest/latest month, not by a day
+        // count — maxDaysInPast and maxDaysInFuture do not apply to this type.
+        if (params.earliestMonthYear) { options.earliestMonthYear = params.earliestMonthYear; }
+        if (params.latestMonthYear) { options.latestMonthYear = params.latestMonthYear; }
+        break;
+      }
+      case "UkAddressField": {
+        // Postcode lookup is the default because it is quicker and more accurate
+        // for the user than typing the address out. Pass false where the address
+        // may not be on the postcode file, such as land parcels or new builds.
+        options.usePostcodeLookup = params.usePostcodeLookup !== false;
+        if (params.hideTitle !== undefined) { options.hideTitle = params.hideTitle; }
+        break;
+      }
+      case "RadiosField":
+      case "CheckboxesField": {
+        if (params.bold !== undefined) { options.bold = params.bold; }
+        if (params.type === "CheckboxesField") {
+          if (params.minSelected !== undefined) { schema.min = params.minSelected; }
+          if (params.maxSelected !== undefined) { schema.max = params.maxSelected; }
+        }
+        break;
+      }
+      case "FileUploadField": {
+        if (params.accept) { options.accept = params.accept; }
+        if (params.minFiles !== undefined) { schema.min = params.minFiles; }
+        if (params.maxFiles !== undefined) { schema.max = params.maxFiles; }
         break;
       }
       case "DeclarationField": {
         if (params.content) {
           component.content = params.content;
         }
+        if (params.declarationConfirmationLabel) {
+          options.declarationConfirmationLabel = params.declarationConfirmationLabel;
+        }
+        break;
+      }
+      case "PaymentField": {
+        this.applyPaymentOptions(params, options);
+        break;
+      }
+      case "GeospatialField": {
+        if (params.countries?.length) { options.countries = params.countries; }
+        if (params.geometryTypes?.length) { options.geometryTypes = params.geometryTypes; }
+        if (params.mapLayers) { options.mapLayers = params.mapLayers; }
+        if (params.minFeatures !== undefined) { schema.min = params.minFeatures; }
+        if (params.maxFeatures !== undefined) { schema.max = params.maxFeatures; }
+        break;
+      }
+      case "EastingNorthingField": {
+        if (params.countries?.length) { options.countries = params.countries; }
+        if (params.mapLayers) { options.mapLayers = params.mapLayers; }
+        const easting: Record<string, number> = {};
+        if (params.minEasting !== undefined) { easting.min = params.minEasting; }
+        if (params.maxEasting !== undefined) { easting.max = params.maxEasting; }
+        if (Object.keys(easting).length > 0) { schema.easting = easting; }
+        const northing: Record<string, number> = {};
+        if (params.minNorthing !== undefined) { northing.min = params.minNorthing; }
+        if (params.maxNorthing !== undefined) { northing.max = params.maxNorthing; }
+        if (Object.keys(northing).length > 0) { schema.northing = northing; }
+        break;
+      }
+      case "LatLongField": {
+        if (params.mapLayers) { options.mapLayers = params.mapLayers; }
+        const latitude: Record<string, number> = {};
+        if (params.minLatitude !== undefined) { latitude.min = params.minLatitude; }
+        if (params.maxLatitude !== undefined) { latitude.max = params.maxLatitude; }
+        if (Object.keys(latitude).length > 0) { schema.latitude = latitude; }
+        const longitude: Record<string, number> = {};
+        if (params.minLongitude !== undefined) { longitude.min = params.minLongitude; }
+        if (params.maxLongitude !== undefined) { longitude.max = params.maxLongitude; }
+        if (Object.keys(longitude).length > 0) { schema.longitude = longitude; }
+        break;
+      }
+      case "OsGridRefField": {
+        if (params.mapLayers) { options.mapLayers = params.mapLayers; }
         break;
       }
     }
@@ -315,20 +483,140 @@ export class FormState {
     page.components.push(component);
   }
 
-  addContent(type: string, content: string, hint?: string): void {
+  addContent(params: AddContentParams): void {
+    const form = this.requireForm();
     const page = this.requireCurrentPage();
+    const options: Record<string, unknown> = {};
+
     const component: Component = {
       id: randomUUID(),
-      type: type as ComponentType,
+      type: params.type as ComponentType,
       name: generateShortName(),
-      options: {},
+      options,
       schema: {},
-      content,
     };
-    if (hint) {
-      component.hint = hint;
+
+    if (CONTENT_COMPONENT_TYPES_WITH_CONTENT.has(component.type)) {
+      if (!params.content) {
+        throw new Error(`A ${params.type} component needs content.`);
+      }
+      component.content = params.content;
     }
+
+    if (params.title) {
+      component.title = params.title;
+    }
+    if (params.hint) {
+      component.hint = params.hint;
+    }
+
+    switch (params.type) {
+      case "List": {
+        if (!params.listItems?.length) {
+          throw new Error(
+            `A List content component needs list_items. Use it to display a bulleted or numbered list of fixed text; use RadiosField or CheckboxesField if the user has to choose one.`
+          );
+        }
+        const items: ListItem[] = params.listItems.map((item) => ({
+          id: randomUUID(),
+          text: item.text,
+          value: item.value,
+          ...(item.hint ? { hint: { text: item.hint, id: randomUUID() } } : {}),
+        }));
+        const list = {
+          id: randomUUID(),
+          name: generateShortName(),
+          title: params.title ?? `List for ${component.name}`,
+          type: "string" as const,
+          items,
+        };
+        form.lists.push(list);
+        component.list = list.id;
+        if (params.listType) { options.type = params.listType; }
+        if (params.classes) { options.classes = params.classes; }
+        if (params.hideTitle !== undefined) { options.hideTitle = params.hideTitle; }
+        if (params.bold !== undefined) { options.bold = params.bold; }
+        break;
+      }
+      case "NotificationBanner": {
+        if (params.success) { options.type = "success"; }
+        if (params.heading) { options.heading = params.heading; }
+        break;
+      }
+    }
+
     page.components.push(component);
+  }
+
+  /**
+   * Maps the payment parameters onto the component options, rejecting values the
+   * forms-designer schema would refuse on import.
+   */
+  private applyPaymentOptions(
+    params: AddQuestionParams,
+    options: Record<string, unknown>
+  ): void {
+    if (params.amount === undefined) {
+      throw new Error(
+        `A PaymentField needs an amount. Pass amount as the charge in pounds, e.g. 25 for £25.`
+      );
+    }
+    if (params.amount < MIN_PAYMENT_AMOUNT || params.amount > MAX_PAYMENT_AMOUNT) {
+      throw new Error(
+        `Payment amount ${params.amount} is out of range. It must be between ${MIN_PAYMENT_AMOUNT} and ${MAX_PAYMENT_AMOUNT} pounds.`
+      );
+    }
+    if (!params.paymentDescription) {
+      throw new Error(
+        `A PaymentField needs a payment_description. This is the text shown on the GOV.UK Pay page and on the payer's statement.`
+      );
+    }
+    if (params.paymentDescription.length > MAX_PAYMENT_DESCRIPTION_LENGTH) {
+      throw new Error(
+        `Payment description is ${params.paymentDescription.length} characters. The maximum is ${MAX_PAYMENT_DESCRIPTION_LENGTH}.`
+      );
+    }
+
+    options.amount = params.amount;
+    options.description = params.paymentDescription;
+
+    if (params.conditionalAmounts?.length) {
+      const form = this.requireForm();
+      const resolved = params.conditionalAmounts.map((entry) => {
+        if (entry.amount < MIN_CONDITIONAL_PAYMENT_AMOUNT || entry.amount > MAX_PAYMENT_AMOUNT) {
+          throw new Error(
+            `Conditional payment amount ${entry.amount} is out of range. It must be between ${MIN_CONDITIONAL_PAYMENT_AMOUNT} and ${MAX_PAYMENT_AMOUNT} pounds.`
+          );
+        }
+        // Callers name the condition; the definition references it by id.
+        const condition = form.conditions.find(
+          (c) => c.displayName === entry.condition || c.id === entry.condition
+        );
+        if (!condition) {
+          const available = form.conditions.map((c) => `"${c.displayName}"`).join(", ");
+          throw new Error(
+            `Condition "${entry.condition}" not found for the conditional payment amount. Available: ${available || "none"}. Add the condition before the PaymentField.`
+          );
+        }
+        return { condition: condition.id, amount: entry.amount };
+      });
+      options.conditionalAmounts = resolved;
+    }
+
+    if (params.emailField) {
+      const emailComponent = this.findComponentByName(params.emailField);
+      if (!emailComponent) {
+        throw new Error(
+          `Email field "${params.emailField}" not found. It must be the name of an EmailAddressField already added to the form.`
+        );
+      }
+      if (emailComponent.type !== "EmailAddressField") {
+        throw new Error(
+          `"${params.emailField}" is a ${emailComponent.type}, not an EmailAddressField. GOV.UK Pay prepopulates its email from an EmailAddressField only.`
+        );
+      }
+      options.emailField = params.emailField;
+    }
   }
 
   private findPageHoldingComponent(name: string): Page | undefined {
@@ -443,7 +731,7 @@ export class FormState {
     currentPage.condition = condition.id;
   }
 
-  async saveForm(outputDir?: string): Promise<string> {
+  async saveForm(outputDir?: string, confirmationEmail?: boolean): Promise<string> {
     const form = this.requireForm();
 
     const hasSummary = form.pages.some((p) => p.path === "/summary");
@@ -452,7 +740,9 @@ export class FormState {
         id: randomUUID(),
         title: "Check your answers",
         path: "/summary",
-        controller: "SummaryPageController",
+        controller: confirmationEmail
+          ? "SummaryPageWithConfirmationEmailController"
+          : "SummaryPageController",
         next: [],
         components: [],
       });
